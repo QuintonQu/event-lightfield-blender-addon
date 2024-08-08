@@ -7,7 +7,7 @@ def lin_log(x, threshold=20):
     """
     linear mapping + logarithmic mapping.
     :param x: float or ndarray
-        the input linear value in range 0-255 TODO assumes 8 bit
+        the input linear value in range 0-1
     :param threshold: float threshold 0-255
         the threshold for transition from linear to log mapping
     Returns: the log value

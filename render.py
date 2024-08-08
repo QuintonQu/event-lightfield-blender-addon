@@ -24,7 +24,7 @@ class SimpleRender(bpy.types.Operator):
 
     def execute(self, context):
         # Set the render output path
-        bpy.context.scene.render.filepath += 'simple_render.png'
+        # bpy.context.scene.render.filepath += 'simple_render.png'
         # Render the image
         bpy.ops.render.render(write_still=True)
         return {'FINISHED'}
@@ -190,7 +190,7 @@ class EventRender(bpy.types.Operator):
 
     def event_simulation(self, new_frame):
         new_frame = new_frame[:, :, 0]
-        new_frame = np.log(new_frame)
+        new_frame = util.lin_log(new_frame)
         if self.current_frame == self.start_frame:
             self.buffer = new_frame
         else:
@@ -295,7 +295,7 @@ class EventLightFieldRender(bpy.types.Operator):
     def event_simulation(self, new_frame):
         s, t = self.poses.idx2pos(self.lightfield_progress)
         new_frame = new_frame[:, :, 0]
-        new_frame = np.log(new_frame)
+        new_frame = util.lin_log(new_frame)
         if self.current_frame == self.start_frame:
             self.buffer[:, :, s, t] = new_frame
         else:
@@ -319,6 +319,7 @@ class EventLightFieldRender(bpy.types.Operator):
         self.lightfield_progress += 1
         self.lightfield_done = self.lightfield_progress >= len(self.poses)
         if self.lightfield_done:
+            # print(f'render frame {self.current_frame:04d} done')
             self.lightfield_progress = 0
             bpy.context.scene.camera.location = self.poses.pos
             self.current_frame += 1
@@ -329,6 +330,7 @@ class EventLightFieldRender(bpy.types.Operator):
         self.done = self.current_frame > self.end_frame
 
     def cancel(self, context):
+        print('cancel')
         self.done = True
 
     def clear(self, context):
