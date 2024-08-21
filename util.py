@@ -28,11 +28,11 @@ def lin_log(x, threshold=20):
 class CamPoses(object):
     def __init__(self, cam):
         self.pos = Vector(cam.location)
-        lf = cam.lightfield
-        self.grid = (lf.num_rows, lf.num_cols)
+        self.lf = cam.lightfield
+        self.grid = (self.lf.num_rows, self.lf.num_cols)
         dir = cam.matrix_world.to_3x3().normalized()
-        self.dx = dir @ Vector((-1., 0., 0.)) * lf.base_x
-        self.dy = dir @ Vector((0., 1., 0.)) * lf.base_y
+        self.dx = dir @ Vector((-1., 0., 0.)) * self.lf.base_x
+        self.dy = dir @ Vector((0., 1., 0.)) * self.lf.base_y
 
     def __len__(self):
         return self.grid[0] * self.grid[1]
@@ -58,3 +58,19 @@ class CamPoses(object):
     def idx2pos(self, index):
         T = self.grid[1]
         return index // T, index % T
+    
+    def get_shiftx(self, index):
+        S, T = self.grid
+        if isinstance(index, int):
+            s, t = self.idx2pos(index)
+        else:
+            s, t = index
+        return self.lf.base_x * (2*t/(T-1)-1) if T > 1 else 0
+    
+    def get_shifty(self, index):
+        S, T = self.grid
+        if isinstance(index, int):
+            s, t = self.idx2pos(index)
+        else:
+            s, t = index
+        return self.lf.base_y * (2*s/(S-1)-1) if S > 1 else 0

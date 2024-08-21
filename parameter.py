@@ -52,13 +52,13 @@ class LFProperty(bpy.types.PropertyGroup):
         description='number of columns of the camera array')
     
     base_x : bpy.props.FloatProperty(
-        name='interval x',
+        name='total x',
         soft_min=0,
         default=0.1,
         description='the x baseline between each camera')
     
     base_y : bpy.props.FloatProperty(
-        name='interval y',
+        name='total y',
         soft_min=0,
         default=0.1,
         description='the y baseline distance between each camera')
