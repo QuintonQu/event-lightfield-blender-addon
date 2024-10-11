@@ -120,10 +120,10 @@ class LightFieldRender(bpy.types.Operator):
         s, t = self.poses.idx2pos(self.progress)
         save_path = os.path.join(self.path, f'{s:02}_{t:02}')
         scene.render.filepath = save_path
-        # scene.camera.location = self.poses[self.progress]
-        # print(f'camera location: {scene.camera.location}')
-        scene.camera.data.shift_x = self.poses.get_shiftx(self.progress)
-        scene.camera.data.shift_y = self.poses.get_shifty(self.progress)
+        scene.camera.location = self.poses[self.progress]
+        print(f'camera location: {scene.camera.location}')
+        # scene.camera.data.shift_x = self.poses.get_shiftx(self.progress)
+        # scene.camera.data.shift_y = self.poses.get_shifty(self.progress)
         self.rendering = True
 
     def post(self, scene, *args):
@@ -149,9 +149,9 @@ class LightFieldRender(bpy.types.Operator):
         bpy.app.handlers.render_init.remove(self.pre)
         bpy.app.handlers.render_post.remove(self.post)
         bpy.app.handlers.render_cancel.remove(self.clear)
-        context.scene.camera.data.shift_x = 0
-        context.scene.camera.data.shift_y = 0
-        # context.scene.camera.location = self.poses.pos
+        # context.scene.camera.data.shift_x = 0
+        # context.scene.camera.data.shift_y = 0
+        context.scene.camera.location = self.poses.pos
 
     def invoke(self, context, event):
         context.window_manager.modal_handler_add(self)
@@ -311,8 +311,9 @@ class EventLightFieldRender(bpy.types.Operator):
 
     def pre(self, scene, *args):
         s, t = self.poses.idx2pos(self.lightfield_progress)
-        scene.camera.shift_x = self.poses.get_shiftx(self.lightfield_progress)
-        scene.camera.shift_y = self.poses.get_shifty(self.lightfield_progress)
+        # scene.camera.data.shift_x = self.poses.get_shiftx(self.lightfield_progress)
+        # scene.camera.data.shift_y = self.poses.get_shifty(self.lightfield_progress)
+        scene.camera.location = self.poses[self.lightfield_progress]
         self.rendering = True
 
     def post(self, scene, *args):
@@ -327,8 +328,8 @@ class EventLightFieldRender(bpy.types.Operator):
         if self.lightfield_done:
             # print(f'render frame {self.current_frame:04d} done')
             self.lightfield_progress = 0
-            scene.camera.data.shift_x = 0
-            scene.camera.data.shift_y = 0
+            # scene.camera.data.shift_x = 0
+            # scene.camera.data.shift_y = 0
             self.current_frame += 1
             bpy.context.scene.frame_set(self.current_frame)
         
@@ -342,8 +343,9 @@ class EventLightFieldRender(bpy.types.Operator):
     def clear(self, context):
         np.save(os.path.join(self.path, 'event_buffer_lightfield.npy'), self.event_buffer)
         context.scene.frame_set(self.start_frame)
-        context.scene.camera.data.shift_x = 0
-        context.scene.camera.data.shift_y = 0
+        # context.scene.camera.data.shift_x = 0
+        # context.scene.camera.data.shift_y = 0
+        context.scene.camera.location = self.poses.pos
         bpy.app.handlers.render_init.remove(self.pre)
         bpy.app.handlers.render_post.remove(self.post)
         bpy.app.handlers.render_cancel.remove(self.clear)

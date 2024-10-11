@@ -55,12 +55,14 @@ class LFProperty(bpy.types.PropertyGroup):
         name='total x',
         soft_min=0,
         default=0.1,
+        precision=4,
         description='the x baseline between each camera')
     
     base_y : bpy.props.FloatProperty(
         name='total y',
         soft_min=0,
         default=0.1,
+        precision=4,
         description='the y baseline distance between each camera')
     
     threshold : bpy.props.FloatProperty(
