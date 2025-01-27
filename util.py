@@ -46,6 +46,9 @@ class CamPoses(object):
         dx = self.dx * (2*t/(T-1)-1) if T > 1 else Vector((0,0,0))
         dy = self.dy * (2*s/(S-1)-1) if S > 1 else Vector((0,0,0))
         return self.pos + dx + dy
+    
+    def get_galvo_position(self, x, y):
+        return self.pos + self.dx * x + self.dy * y
 
     def bound(self, s, t):
         S, T = self.grid

@@ -70,6 +70,13 @@ class LFProperty(bpy.types.PropertyGroup):
         soft_min=0,
         default=0.1,
         description='the threshold for transition from linear to log mapping')
+    
+    frequency : bpy.props.FloatProperty(
+        name='frequency',
+        soft_min=0,
+        default=10,
+        description='the frequency of the light field')
+    
 
 
 class LF_PT_Panel(bpy.types.Panel):
@@ -96,6 +103,7 @@ class LF_PT_Panel(bpy.types.Panel):
         row.prop(lf, 'base_y')
         row = layout.row(align=True)
         row.prop(lf, 'threshold')
+        row.prop(lf, 'frequency')
         layout.separator()
         layout.operator(
             render.SimpleRender.bl_idname,
@@ -116,6 +124,10 @@ class LF_PT_Panel(bpy.types.Panel):
         layout.operator(
             render.EventLightFieldRender.bl_idname,
             text=render.EventLightFieldRender.bl_label,
+            icon='RENDER_ANIMATION')
+        layout.operator(
+            render.EventGalvoRender.bl_idname,
+            text=render.EventGalvoRender.bl_label,
             icon='RENDER_ANIMATION')
 
     @classmethod

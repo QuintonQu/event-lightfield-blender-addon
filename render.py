@@ -2,6 +2,7 @@ import bpy
 import os
 from . import util
 import numpy as np
+from mathutils import Vector, Matrix
 
 def register():
     bpy.utils.register_class(SimpleRender)
@@ -9,6 +10,7 @@ def register():
     bpy.utils.register_class(SimpleAnimation)
     bpy.utils.register_class(EventRender)
     bpy.utils.register_class(EventLightFieldRender)
+    bpy.utils.register_class(EventGalvoRender)
 
 def unregister():
     bpy.utils.unregister_class(SimpleRender)
@@ -16,6 +18,7 @@ def unregister():
     bpy.utils.unregister_class(SimpleAnimation)
     bpy.utils.unregister_class(EventRender)
     bpy.utils.unregister_class(EventLightFieldRender)
+    bpy.utils.unregister_class(EventGalvoRender)
 
 
 class SimpleRender(bpy.types.Operator):
@@ -194,7 +197,7 @@ class EventRender(bpy.types.Operator):
     bl_label = "Event Render"
 
     def event_simulation(self, new_frame):
-        new_frame = new_frame[:, :, 0]
+        new_frame = 0.299 * new_frame[:, :, 0] + 0.587 * new_frame[:, :, 1] + 0.114 * new_frame[:, :, 2]
         new_frame = util.lin_log(new_frame)
         if self.current_frame == self.start_frame:
             self.buffer = new_frame
@@ -299,15 +302,35 @@ class EventLightFieldRender(bpy.types.Operator):
                     
     def event_simulation(self, new_frame):
         s, t = self.poses.idx2pos(self.lightfield_progress)
-        new_frame = new_frame[:, :, 0]
+        new_frame = 0.299 * new_frame[:, :, 0] + 0.587 * new_frame[:, :, 1] + 0.114 * new_frame[:, :, 2]
         new_frame = util.lin_log(new_frame)
+
+        header = f'{self.res_x} {self.res_y}'
+        folder_path = os.path.join(self.path, f'pose_{s}_{t}')
+
         if self.current_frame == self.start_frame:
             self.buffer[:, :, s, t] = new_frame
+            with open(os.path.join(folder_path, f'pose_{s}_{t}.txt'), 'w') as f:
+                f.write(header + '\n')
         else:
             diff = new_frame - self.buffer[:, :, s, t]
             mask = np.abs(diff) > self.threshold
             self.buffer[:, :, s, t][mask] = new_frame[mask]
-            self.event_buffer[:, :, self.current_frame-2, s, t] = np.where(mask, np.sign(diff), 0)
+            # self.event_buffer[:, :, self.current_frame-1-self.start_frame, s, t] = np.where(mask, np.sign(diff), 0)
+
+            # write to txt file
+            
+            mask_indices = np.argwhere(mask)
+            if mask_indices.size > 0:
+                # print(f'frame {self.current_frame:04d} frame_rate {self.frame_rate}')
+                time_stamps = np.full(mask_indices.shape[0], self.current_frame / self.frame_rate)
+                polarities = np.sign(diff[mask])
+                event_data = np.column_stack((time_stamps, mask_indices[:, 1], self.res_y-mask_indices[:, 0], polarities))
+
+                with open(os.path.join(folder_path, f'pose_{s}_{t}.txt'), 'a') as f:
+                    np.savetxt(f, event_data, fmt='%.6f %d %d %d', comments='')
+
+
 
     def pre(self, scene, *args):
         s, t = self.poses.idx2pos(self.lightfield_progress)
@@ -317,6 +340,13 @@ class EventLightFieldRender(bpy.types.Operator):
         self.rendering = True
 
     def post(self, scene, *args):
+        # Save the png file 
+        s, t = self.poses.idx2pos(self.lightfield_progress)
+        folder_path = os.path.join(self.path, f'pose_{s}_{t}')
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+        bpy.data.images['Render Result'].save_render(os.path.join(folder_path, f'{self.current_frame:04d}.png'))
+
         # Update the buffer
         pixels = bpy.data.images['Viewer Node'].pixels
         pixels = np.array(pixels[:])
@@ -341,7 +371,7 @@ class EventLightFieldRender(bpy.types.Operator):
         self.done = True
 
     def clear(self, context):
-        np.save(os.path.join(self.path, 'event_buffer_lightfield.npy'), self.event_buffer)
+        # np.save(os.path.join(self.path, 'event_buffer_lightfield.npy'), self.event_buffer)
         context.scene.frame_set(self.start_frame)
         # context.scene.camera.data.shift_x = 0
         # context.scene.camera.data.shift_y = 0
@@ -363,12 +393,13 @@ class EventLightFieldRender(bpy.types.Operator):
         self.current_frame = bpy.context.scene.frame_start
         self.done = False
         self.rendering = False
+        self.frame_rate = bpy.context.scene.render.fps
         # Get render resolution
         res = bpy.context.scene.render.resolution_percentage / 100
         self.res_x = int(bpy.context.scene.render.resolution_x * res)
         self.res_y = int(bpy.context.scene.render.resolution_y * res)
         self.buffer = np.zeros((self.res_y, self.res_x, lf.num_rows, lf.num_cols), dtype=np.float32)
-        self.event_buffer = np.zeros((self.res_y, self.res_x, self.end_frame-self.start_frame, lf.num_rows, lf.num_cols), dtype=np.int8)
+        # self.event_buffer = np.zeros((self.res_y, self.res_x, self.end_frame-self.start_frame, lf.num_rows, lf.num_cols), dtype=np.int8)
         self.threshold = context.scene.camera.lightfield.threshold
         
         # Bind handlers to the pipeline
@@ -406,4 +437,130 @@ class EventLightFieldRender(bpy.types.Operator):
         self.clear(context)
 
         return {'FINISHED'}
+    
 
+class EventGalvoRender(bpy.types.Operator):
+    bl_idname = "render.event_galvo_render"
+    bl_label = "Event Galvo Render"
+
+    def event_simulation(self, new_frame):
+        new_frame = 0.299 * new_frame[:, :, 0] + 0.587 * new_frame[:, :, 1] + 0.114 * new_frame[:, :, 2]
+        new_frame = util.lin_log(new_frame)
+        
+        header = f'{self.res_x} {self.res_y}'
+        folder_path = os.path.join(self.path, 'event_galvo')
+        
+        if self.current_frame == self.start_frame:
+            self.buffer = new_frame
+            with open(os.path.join(folder_path, f'event_galvo.txt'), 'w') as f:
+                f.write(header + '\n')
+        else:
+            diff = new_frame - self.buffer
+            mask = np.abs(diff) > self.threshold
+            self.buffer[mask] = new_frame[mask]
+            # self.event_buffer[:, :, self.current_frame-1-self.start_frame] = np.where(mask, np.sign(diff), 0)
+
+            mask_indices = np.argwhere(mask)
+            if mask_indices.size > 0:
+                # print(f'frame {self.current_frame:04d} frame_rate {self.frame_rate}')
+                time_stamps = np.full(mask_indices.shape[0], self.current_frame / self.frame_rate)
+                polarities = np.sign(diff[mask])
+                event_data = np.column_stack((time_stamps, mask_indices[:, 1], self.res_y-mask_indices[:, 0], polarities))
+
+                with open(os.path.join(folder_path, f'event_galvo.txt'), 'a') as f:
+                    np.savetxt(f, event_data, fmt='%.6f %d %d %d', comments='')
+
+    def pre(self, scene, *args):
+        # print(f'render on frame {self.current_frame:04d}')
+        # Change the camera location on a circle
+        frequency = scene.camera.lightfield.frequency
+        angle = 2 * np.pi * (self.current_frame - self.start_frame) / frequency
+        x = np.cos(angle)
+        y = np.sin(angle)
+        scene.camera.location = self.poses.get_galvo_position(x, y)
+
+        # target = bpy.data.objects['Empty']
+        # look_at = (target.location - scene.camera.location).normalized()
+        # up = Vector((0, 0, 1))
+        # right = look_at.cross(up).normalized()
+        # up = right.cross(look_at).normalized()
+        # rot_matrix = Matrix((
+        #     right,
+        #     up,
+        #     -look_at
+        # )).transposed()
+
+        # scene.camera.rotation_euler = rot_matrix.to_euler()
+        self.rendering = True
+
+    def post(self, scene, *args):
+        # Save the png file
+        folder_path = os.path.join(self.path, f'event_galvo')
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+        bpy.data.images['Render Result'].save_render(os.path.join(folder_path, f'{self.current_frame:04d}.png'))
+
+        # Update the buffer
+        pixels = bpy.data.images['Viewer Node'].pixels
+        pixels = np.array(pixels[:])
+        pixels = pixels.reshape((self.res_y, self.res_x, 4))
+        self.event_simulation(pixels)
+
+        self.current_frame += 1
+        bpy.context.scene.frame_set(self.current_frame)
+        self.rendering = False
+        self.done = self.current_frame > self.end_frame
+
+    def cancel(self, context):
+        self.done = True
+
+    def clear(self, context):
+        # np.save(os.path.join(self.path, 'event_buffer.npy'), self.event_buffer)
+        bpy.app.handlers.render_init.remove(self.pre)
+        bpy.app.handlers.render_post.remove(self.post)
+        bpy.app.handlers.render_cancel.remove(self.clear)
+        context.scene.frame_set(self.start_frame)
+
+    def init(self, context):
+        # Get the start, end and current frame
+        self.poses = util.CamPoses(context.scene.camera)
+        self.start_frame = bpy.context.scene.frame_start
+        self.end_frame = bpy.context.scene.frame_end
+        self.current_frame = bpy.context.scene.frame_start
+        self.done = False
+        self.rendering = False
+        self.frame_rate = bpy.context.scene.render.fps
+        # Get render resolution
+        res = bpy.context.scene.render.resolution_percentage / 100
+        self.res_x = int(bpy.context.scene.render.resolution_x * res)
+        self.res_y = int(bpy.context.scene.render.resolution_y * res)
+        self.buffer = np.zeros((self.res_y, self.res_x, 1), dtype=np.float32)
+        # self.event_buffer = np.zeros((self.res_y, self.res_x, self.end_frame-self.start_frame), dtype=np.int8)
+        self.threshold = context.scene.camera.lightfield.threshold
+        self.path = bpy.context.scene.render.filepath
+        bpy.app.handlers.render_init.append(self.pre)
+        bpy.app.handlers.render_post.append(self.post)
+        bpy.app.handlers.render_cancel.append(self.clear)
+
+    def invoke(self, context, event):
+        context.window_manager.modal_handler_add(self)
+        self.timer = context.window_manager.event_timer_add(
+            0.5, window=context.window)
+        if context.object.type == 'CAMERA':
+            context.scene.camera = context.object
+        self.init(context)
+        return {'RUNNING_MODAL'}
+
+    def modal(self, context, event):
+        if self.done:
+            context.window_manager.event_timer_remove(self.timer)
+            self.timer = None
+            self.clear(context)
+            return {'FINISHED'}
+        if event.type == 'TIMER':
+            if not self.rendering:
+                bpy.ops.render.render("EXEC_DEFAULT", write_still=False)
+        elif event.type == 'ESC':
+            self.cancel(context)
+
+        return {'PASS_THROUGH'}
